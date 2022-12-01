@@ -24,6 +24,13 @@ snafu = "0.5"
 parse_duration = "1.0"
 augr-core = { path = "../core", version = "0.2.1" }
 uuid = "0.7"
+rand = { version = "0.7.0" , features = [ "getrandom" ] }
+challenge-bypass-ristretto = { version = "*", features = ["base64", "serde_base64"]}
+serde_json = "*"
+sha2 = "0.9"
+base64 = "0.13"
+rand_core = "*"
+
 
 flame = { version = "0.2.2", optional = true }
 flamer = { version = "0.4", optional = true }

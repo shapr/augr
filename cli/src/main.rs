@@ -20,6 +20,14 @@ use snafu::{ErrorCompat, ResultExt, Snafu};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+// ristretto
+use rand;
+use rand::rngs::OsRng;
+use challenge_bypass_ristretto;
+use challenge_bypass_ristretto::voprf::Token;
+use sha2::Sha512;
+
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "augr", about, author)]
 struct Opt {
@@ -69,7 +77,7 @@ pub enum Error {
 
     #[snafu(display("Errors reading repository: {:?}", errors))]
     ReadRepository {
-        errors: Vec<RepositoryError<SyncFolderStoreError>>,
+	errors: Vec<RepositoryError<SyncFolderStoreError>>,
     },
 
     #[snafu(display("Conflicts while merging patches: {:?}", conflicts))]
@@ -80,7 +88,7 @@ pub enum Error {
 
     #[snafu(display("Errors synchronizing data: {:?}", errors))]
     SyncError {
-        errors: Vec<RepositoryError<SyncFolderStoreError>>,
+	errors: Vec<RepositoryError<SyncFolderStoreError>>,
     },
 
     #[snafu(display("Error: {}", source))]
@@ -88,14 +96,23 @@ pub enum Error {
 }
 
 fn main() {
+    let mut rng = OsRng;
+    println!("{:?}", rng);
+    let token = Token::random::<Sha512,OsRng>(&mut rng);
+    let token_blinded = token.blind();
+    let boop = serde_json::to_string(&token_blinded);
+    println!("{:?}",boop);
+
+
+
     match run() {
-        Ok(()) => {}
-        Err(e) => {
-            eprintln!("An error occured: {}", e);
-            if let Some(backtrace) = ErrorCompat::backtrace(&e) {
-                eprintln!("{}", backtrace);
-            }
-        }
+	Ok(()) => {}
+	Err(e) => {
+	    eprintln!("An error occured: {}", e);
+	    if let Some(backtrace) = ErrorCompat::backtrace(&e) {
+		eprintln!("{}", backtrace);
+	    }
+	}
     }
 }
 
@@ -104,11 +121,11 @@ fn run() -> Result<(), Error> {
 
     // Load config
     let conf_file = match opt.config {
-        Some(config_path) => config_path,
-        None => {
-            let proj_dirs = directories::ProjectDirs::from("xyz", "geemili", "augr").unwrap();
-            proj_dirs.config_dir().join("config.toml")
-        }
+	Some(config_path) => config_path,
+	None => {
+	    let proj_dirs = directories::ProjectDirs::from("xyz", "geemili", "augr").unwrap();
+	    proj_dirs.config_dir().join("config.toml")
+	}
     };
     let conf = config::load_config(&conf_file).context(GetConfig {})?;
 
@@ -127,7 +144,7 @@ fn run() -> Result<(), Error> {
     flame::start("synchronize data");
 
     repo.try_sync_data()
-        .map_err(|errors| Error::SyncError { errors })?;
+	.map_err(|errors| Error::SyncError { errors })?;
     repo.save_meta().unwrap();
 
     #[cfg(feature = "flame_it")]
@@ -139,8 +156,8 @@ fn run() -> Result<(), Error> {
 
     let eventgraph = repo.timesheet();
     let timesheet = eventgraph
-        .flatten()
-        .map_err(|conflicts| Error::MergeConflicts { conflicts })?;
+	.flatten()
+	.map_err(|conflicts| Error::MergeConflicts { conflicts })?;
 
     #[cfg(feature = "flame_it")]
     flame::end("flatten timesheet");
@@ -149,43 +166,43 @@ fn run() -> Result<(), Error> {
     #[cfg(feature = "flame_it")]
     flame::start("command");
     match opt.cmd.unwrap_or_default() {
-        Command::Start(subcmd) => {
-            let patches = subcmd.exec(&timesheet);
-            for patch in patches {
-                println!("{}", patch.patch_ref());
-                repo.add_patch(patch).unwrap();
-            }
-        }
-        Command::Import(subcmd) => {
-            let patches = subcmd.exec(&timesheet).context(ImportError {})?;
-            for patch in patches {
-                println!("{}", patch.patch_ref());
-                repo.add_patch(patch).unwrap();
-            }
-        }
-        Command::Summary(subcmd) => subcmd.exec(&timesheet),
-        Command::Chart(subcmd) => subcmd.exec(&timesheet),
-        Command::Tags(subcmd) => subcmd.exec(&timesheet),
-        Command::Tag(subcmd) => {
-            let patches = subcmd
-                .exec(&timesheet)
-                .map_err(|e| Box::new(e).into())
-                .context(GeneralError {})?;
-            for patch in patches {
-                println!("{}", patch.patch_ref());
-                repo.add_patch(patch).unwrap();
-            }
-        }
-        Command::SetStart(subcmd) => {
-            let patches = subcmd
-                .exec(&timesheet)
-                .map_err(|e| Box::new(e).into())
-                .context(GeneralError {})?;
-            for patch in patches {
-                println!("{}", patch.patch_ref());
-                repo.add_patch(patch).unwrap();
-            }
-        }
+	Command::Start(subcmd) => {
+	    let patches = subcmd.exec(&timesheet);
+	    for patch in patches {
+		println!("{}", patch.patch_ref());
+		repo.add_patch(patch).unwrap();
+	    }
+	}
+	Command::Import(subcmd) => {
+	    let patches = subcmd.exec(&timesheet).context(ImportError {})?;
+	    for patch in patches {
+		println!("{}", patch.patch_ref());
+		repo.add_patch(patch).unwrap();
+	    }
+	}
+	Command::Summary(subcmd) => subcmd.exec(&timesheet),
+	Command::Chart(subcmd) => subcmd.exec(&timesheet),
+	Command::Tags(subcmd) => subcmd.exec(&timesheet),
+	Command::Tag(subcmd) => {
+	    let patches = subcmd
+		.exec(&timesheet)
+		.map_err(|e| Box::new(e).into())
+		.context(GeneralError {})?;
+	    for patch in patches {
+		println!("{}", patch.patch_ref());
+		repo.add_patch(patch).unwrap();
+	    }
+	}
+	Command::SetStart(subcmd) => {
+	    let patches = subcmd
+		.exec(&timesheet)
+		.map_err(|e| Box::new(e).into())
+		.context(GeneralError {})?;
+	    for patch in patches {
+		println!("{}", patch.patch_ref());
+		repo.add_patch(patch).unwrap();
+	    }
+	}
     };
     #[cfg(feature = "flame_it")]
     flame::end("command");
@@ -203,14 +220,14 @@ fn format_duration(duration: chrono::Duration) -> String {
     let hours = duration.num_hours();
     let mins = duration.num_minutes() - (hours * 60);
     if hours < 1 {
-        format!("{}m", mins)
+	format!("{}m", mins)
     } else {
-        format!("{}h {}m", hours, mins)
+	format!("{}h {}m", hours, mins)
     }
 }
 
 impl Default for Command {
     fn default() -> Self {
-        Command::Summary(summary::SummaryCmd::default())
+	Command::Summary(summary::SummaryCmd::default())
     }
 }
